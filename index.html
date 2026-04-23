@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Misi Perjalanan Makanan - Game Biologi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f0f9ff;
+            overflow-x: hidden;
+        }
+
+        .organ-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .organ-card:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+
+        .active-organ {
+            border: 4px solid #3b82f6;
+            background-color: #dbeafe;
+        }
+
+        .progress-line {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            height: 4px;
+            background: #cbd5e1;
+            z-index: -1;
+            width: 100%;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #3b82f6;
+            transition: width 0.5s ease;
+        }
+
+        #food-sprite {
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .bounce {
+            animation: bounce 2s infinite;
+        }
+
+        .loading-dots:after {
+            content: '.';
+            animation: dots 1s steps(5, end) infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60% { content: '...'; }
+            80%, 100% { content: ''; }
+        }
+
+        /* Music Toggle Button Style */
+        .music-control {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4">
+
+    <!-- Audio Element -->
+    <audio id="bg-music" loop>
+        <source src="https://github.com/ristawahyuni96-max/sistem-pencernaan/raw/refs/heads/main/Clockwork_Classroom.mp3" type="audio/mpeg">
+    </audio>
+
+    <!-- Music Control Button -->
+    <div class="music-control">
+        <button onclick="toggleMusic()" id="music-btn" class="bg-white p-3 rounded-full shadow-lg border-2 border-blue-200 hover:bg-blue-50 transition-all">
+            <span id="music-icon" class="text-2xl">🔇</span>
+        </button>
+    </div>
+
+    <!-- Header -->
+    <header class="text-center my-8">
+        <h1 class="text-4xl font-extrabold text-blue-600 mb-2">Misi Perjalanan Makanan 🍎</h1>
+        <p class="text-gray-600">Bantu Apel melewati sistem pencernaan dengan menjawab tantangan!</p>
+    </header>
+
+    <!-- Game Stats -->
+    <div class="max-w-4xl w-full bg-white rounded-2xl shadow-lg p-6 mb-8 flex justify-between items-center">
+        <div>
+            <span class="text-sm text-gray-500 uppercase font-bold">Skor Kamu</span>
+            <div id="score" class="text-3xl font-black text-blue-500">0</div>
+        </div>
+        <div class="flex gap-2">
+             <button onclick="generateAISummary()" class="bg-purple-100 hover:bg-purple-200 text-purple-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+                ✨ Ringkasan Cerdas
+            </button>
+        </div>
+        <div class="text-right">
+            <span class="text-sm text-gray-500 uppercase font-bold">Lokasi Saat Ini</span>
+            <div id="current-location" class="text-xl font-bold text-green-600 font-bold uppercase">Mulut</div>
+        </div>
+    </div>
+
+    <!-- AI Info Panel (Hidden initially) -->
+    <div id="ai-panel" class="hidden max-w-4xl w-full bg-purple-50 border-2 border-purple-200 rounded-2xl p-6 mb-8 relative">
+        <button onclick="document.getElementById('ai-panel').classList.add('hidden')" class="absolute top-2 right-4 text-purple-400 hover:text-purple-600 font-bold">✕</button>
+        <h3 class="font-bold text-purple-800 mb-2 flex items-center gap-2">
+            ✨ Penjelasan Ahli Gemini
+        </h3>
+        <div id="ai-content" class="text-purple-900 text-sm leading-relaxed italic">
+            Sedang memikirkan penjelasan...
+        </div>
+    </div>
+
+    <!-- Map Area -->
+    <div class="max-w-5xl w-full relative mb-12 px-4">
+        <div class="progress-line">
+            <div id="progress-fill" class="progress-fill" style="width: 0%"></div>
+        </div>
+        
+        <div class="flex justify-between items-center relative">
+            <!-- Organs -->
+            <div id="organ-0" class="organ-card w-16 h-16 md:w-24 md:h-24 bg-white rounded-full flex flex-col items-center justify-center border-2 border-gray-200 active-organ">
+                <span class="text-2xl md:text-4xl">👄</span>
+                <span class="text-[10px] md:text-xs font-bold mt-1">MULUT</span>
+            </div>
+            <div id="organ-1" class="organ-card w-16 h-16 md:w-24 md:h-24 bg-white rounded-full flex flex-col items-center justify-center border-2 border-gray-200">
+                <span class="text-2xl md:text-4xl">🦒</span>
+                <span class="text-[10px] md:text-xs font-bold mt-1">ESOFAGUS</span>
+            </div>
+            <div id="organ-2" class="organ-card w-16 h-16 md:w-24 md:h-24 bg-white rounded-full flex flex-col items-center justify-center border-2 border-gray-200">
+                <span class="text-2xl md:text-4xl">🎈</span>
+                <span class="text-[10px] md:text-xs font-bold mt-1">LAMBUNG</span>
+            </div>
+            <div id="organ-3" class="organ-card w-16 h-16 md:w-24 md:h-24 bg-white rounded-full flex flex-col items-center justify-center border-2 border-gray-200">
+                <span class="text-2xl md:text-4xl">🌀</span>
+                <span class="text-[10px] md:text-xs font-bold mt-1">USUS HALUS</span>
+            </div>
+            <div id="organ-4" class="organ-card w-16 h-16 md:w-24 md:h-24 bg-white rounded-full flex flex-col items-center justify-center border-2 border-gray-200">
+                <span class="text-2xl md:text-4xl">💩</span>
+                <span class="text-[10px] md:text-xs font-bold mt-1">USUS BESAR</span>
+            </div>
+
+            <!-- Food Sprite (The Apple) -->
+            <div id="food-sprite" class="absolute left-0 -top-8 w-12 h-12 flex items-center justify-center text-3xl bounce" style="transform: translateX(0px);">
+                🍎
+            </div>
+        </div>
+    </div>
+
+    <!-- Interaction Zone -->
+    <main id="game-container" class="max-w-2xl w-full bg-white rounded-3xl shadow-xl p-8 mb-12">
+        <div id="quiz-area">
+            <h2 id="organ-title" class="text-2xl font-bold text-gray-800 mb-4 text-center">Selamat Datang di Mulut!</h2>
+            <p id="organ-desc" class="text-gray-600 mb-6 text-center leading-relaxed">
+                Di sini, apel akan dikunyah secara mekanik oleh gigi dan dipecah secara kimiawi oleh enzim ptialin. 
+                Jawab pertanyaan ini untuk lanjut!
+            </p>
+            
+            <div class="space-y-4">
+                <div id="question" class="font-semibold text-lg text-blue-700 bg-blue-50 p-4 rounded-xl border-l-4 border-blue-500">
+                    Enzim apa yang berfungsi memecah karbohidrat di dalam mulut?
+                </div>
+                <div id="options" class="grid grid-cols-1 gap-3">
+                    <!-- Options generated by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Feedback & Next Button -->
+        <div id="feedback" class="hidden mt-6 text-center p-4 rounded-xl font-bold"></div>
+        <button id="next-btn" class="hidden w-full mt-6 bg-green-500 hover:bg-green-600 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-green-200">
+            Lanjutkan Perjalanan ➔
+        </button>
+    </main>
+
+    <!-- Final Result Screen -->
+    <div id="final-screen" class="hidden fixed inset-0 bg-white z-50 flex flex-col items-center justify-center p-6 text-center overflow-y-auto">
+        <div class="text-8xl mb-6">🏆</div>
+        <h2 class="text-4xl font-black text-blue-600 mb-2">Misi Selesai!</h2>
+        <p class="text-xl text-gray-600 mb-8">Kamu berhasil mengantarkan makanan sampai akhir sistem pencernaan.</p>
+        
+        <div class="flex flex-wrap justify-center gap-4 mb-8">
+            <div class="bg-blue-50 p-6 rounded-3xl min-w-[200px]">
+                <p class="text-gray-500 uppercase text-sm font-bold">Skor Akhir</p>
+                <p id="final-score" class="text-6xl font-black text-blue-500">0</p>
+            </div>
+            
+            <!-- AI Chatbox at the end -->
+            <div class="bg-purple-50 p-6 rounded-3xl max-w-md w-full border-2 border-purple-100">
+                <p class="text-purple-600 uppercase text-sm font-bold mb-2">Tanya Ahli Biologi ✨</p>
+                <div class="flex gap-2">
+                    <input type="text" id="ai-input" placeholder="Tanya tentang pencernaan..." class="flex-1 p-2 rounded-lg border border-purple-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">
+                    <button onclick="askAIBiology()" id="ai-ask-btn" class="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-bold">Kirim</button>
+                </div>
+                <div id="ai-chat-response" class="mt-4 text-left text-xs text-purple-800 italic max-h-32 overflow-y-auto"></div>
+            </div>
+        </div>
+
+        <button onclick="location.reload()" class="bg-blue-600 text-white px-12 py-4 rounded-full font-bold text-xl hover:bg-blue-700 transition-all">
+            Main Lagi
+        </button>
+    </div>
+
+    <script>
+        const apiKey = ""; // Disediakan oleh lingkungan eksekusi
+        const gameData = [
+            {
+                name: "Mulut",
+                desc: "Di sini makanan dipotong-potong oleh gigi (mekanik) dan bercampur dengan air liur (kimiawi).",
+                question: "Enzim apa yang terdapat di air liur untuk mengubah amilum menjadi glukosa?",
+                options: ["Pepsin", "Ptialin (Amilase)", "Lipase", "Renin"],
+                correct: 1
+            },
+            {
+                name: "Esofagus",
+                desc: "Saluran panjang menuju lambung. Di sini terjadi gerakan meremas-remas untuk mendorong makanan.",
+                question: "Apa nama gerakan meremas pada kerongkongan (esofagus)?",
+                options: ["Gerak Brown", "Gerak Lurus", "Gerak Peristaltik", "Gerak Refleks"],
+                correct: 2
+            },
+            {
+                name: "Lambung",
+                desc: "Kantong besar tempat makanan diaduk dan dicerna oleh asam lambung yang sangat kuat.",
+                question: "Cairan asam yang berfungsi membunuh kuman pada lambung adalah...",
+                options: ["HCL (Asam Klorida)", "Empedu", "Air Liur", "Asam Cuka"],
+                correct: 0
+            },
+            {
+                name: "Usus Halus",
+                desc: "Bagian terpanjang di mana sari-sari makanan diserap untuk diedarkan ke seluruh tubuh.",
+                question: "Sari makanan yang sudah diserap di usus halus masuk ke dalam...",
+                options: ["Paru-paru", "Jantung", "Pembuluh Darah", "Ginjal"],
+                correct: 2
+            },
+            {
+                name: "Usus Besar",
+                desc: "Tempat penyerapan air dari sisa makanan dan pembusukan sisa makanan oleh bakteri baik.",
+                question: "Bakteri yang membantu pembusukan sisa makanan di usus besar adalah...",
+                options: ["Salmonella", "E. Coli", "Lactobacillus", "Amoeba"],
+                correct: 1
+            }
+        ];
+
+        let currentStep = 0;
+        let score = 0;
+        let musicStarted = false;
+
+        const scoreEl = document.getElementById('score');
+        const locationEl = document.getElementById('current-location');
+        const organTitle = document.getElementById('organ-title');
+        const organDesc = document.getElementById('organ-desc');
+        const questionEl = document.getElementById('question');
+        const optionsEl = document.getElementById('options');
+        const feedbackEl = document.getElementById('feedback');
+        const nextBtn = document.getElementById('next-btn');
+        const foodSprite = document.getElementById('food-sprite');
+        const progressFill = document.getElementById('progress-fill');
+        const aiPanel = document.getElementById('ai-panel');
+        const aiContent = document.getElementById('ai-content');
+        const bgMusic = document.getElementById('bg-music');
+        const musicIcon = document.getElementById('music-icon');
+
+        // Music Controls
+        function toggleMusic() {
+            if (bgMusic.paused) {
+                bgMusic.play().catch(e => console.log("User interaction required"));
+                musicIcon.innerText = "🔊";
+                musicStarted = true;
+            } else {
+                bgMusic.pause();
+                musicIcon.innerText = "🔇";
+            }
+        }
+
+        // Auto-play attempt on first click anywhere (browser policy)
+        document.body.addEventListener('click', () => {
+            if (!musicStarted) {
+                bgMusic.play().catch(() => {});
+                musicIcon.innerText = "🔊";
+                musicStarted = true;
+            }
+        }, { once: true });
+
+        // Gemini API Implementation with Exponential Backoff
+        async function callGemini(prompt, systemPrompt = "Kamu adalah guru Biologi yang menyenangkan dan ahli.") {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            };
+
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+                    return result.candidates?.[0]?.content?.parts?.[0]?.text || "Maaf, saya sedang kehilangan fokus. Coba lagi ya!";
+                } catch (error) {
+                    const delay = Math.pow(2, i) * 1000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+            return "Koneksi terputus. Silakan coba beberapa saat lagi.";
+        }
+
+        async function generateAISummary() {
+            aiPanel.classList.remove('hidden');
+            aiContent.innerHTML = '<span class="loading-dots">Menganalisis organ ini</span>';
+            
+            const organ = gameData[currentStep].name;
+            const prompt = `Berikan satu fakta unik dan singkat (maksimal 2 kalimat) tentang organ ${organ} dalam sistem pencernaan manusia yang mungkin belum diketahui siswa SMP. Gunakan bahasa yang seru!`;
+            
+            const summary = await callGemini(prompt);
+            aiContent.innerText = summary;
+        }
+
+        async function askAIBiology() {
+            const input = document.getElementById('ai-input');
+            const chatRes = document.getElementById('ai-chat-response');
+            const btn = document.getElementById('ai-ask-btn');
+            
+            if (!input.value.trim()) return;
+            
+            const query = input.value;
+            input.value = "";
+            btn.disabled = true;
+            chatRes.innerHTML = `<p class="text-gray-400">🤔 Sedang berpikir...</p>`;
+            
+            const systemPrompt = "Kamu adalah Dr. Nano, ahli pencernaan. Jawab pertanyaan siswa dengan singkat, akurat, dan ramah. Gunakan istilah biologi yang benar.";
+            const response = await callGemini(query, systemPrompt);
+            
+            chatRes.innerHTML = `<p class="font-bold text-purple-900">Dr. Nano:</p><p>${response}</p>`;
+            btn.disabled = false;
+        }
+
+        function initGame() {
+            loadStep(0);
+        }
+
+        function loadStep(step) {
+            const data = gameData[step];
+            
+            locationEl.innerText = data.name;
+            organTitle.innerText = `Selamat Datang di ${data.name}!`;
+            organDesc.innerText = data.desc;
+            questionEl.innerText = data.question;
+            
+            optionsEl.innerHTML = '';
+            feedbackEl.classList.add('hidden');
+            nextBtn.classList.add('hidden');
+            aiPanel.classList.add('hidden'); 
+
+            data.options.forEach((opt, index) => {
+                const btn = document.createElement('button');
+                btn.className = "w-full text-left p-4 rounded-xl border-2 border-gray-100 hover:border-blue-300 hover:bg-blue-50 transition-all font-medium text-gray-700";
+                btn.innerText = opt;
+                btn.onclick = () => checkAnswer(index);
+                optionsEl.appendChild(btn);
+            });
+
+            updateMap(step);
+        }
+
+        function checkAnswer(selectedIndex) {
+            const data = gameData[currentStep];
+            const buttons = optionsEl.querySelectorAll('button');
+            buttons.forEach(btn => btn.disabled = true);
+
+            if (selectedIndex === data.correct) {
+                score += 20;
+                scoreEl.innerText = score;
+                feedbackEl.innerText = "✅ Hebat! Jawabanmu benar.";
+                feedbackEl.className = "mt-6 text-center p-4 rounded-xl font-bold bg-green-100 text-green-700 block";
+                buttons[selectedIndex].className = "w-full text-left p-4 rounded-xl border-2 border-green-500 bg-green-50 font-bold text-green-700";
+            } else {
+                feedbackEl.innerText = `❌ Oops! Jawaban yang benar adalah: ${data.options[data.correct]}`;
+                feedbackEl.className = "mt-6 text-center p-4 rounded-xl font-bold bg-red-100 text-red-700 block";
+                buttons[selectedIndex].className = "w-full text-left p-4 rounded-xl border-2 border-red-500 bg-red-50 font-bold text-red-700";
+            }
+
+            nextBtn.classList.remove('hidden');
+        }
+
+        function updateMap(step) {
+            for(let i=0; i<gameData.length; i++) {
+                const el = document.getElementById(`organ-${i}`);
+                if (i <= step) {
+                    el.classList.add('active-organ');
+                    el.classList.remove('border-gray-200');
+                }
+            }
+
+            const organEl = document.getElementById(`organ-${step}`);
+            const rect = organEl.getBoundingClientRect();
+            const containerRect = organEl.parentElement.getBoundingClientRect();
+            const leftPos = rect.left - containerRect.left + (rect.width/2) - 24;
+            
+            foodSprite.style.transform = `translateX(${leftPos}px)`;
+            
+            const progress = (step / (gameData.length - 1)) * 100;
+            progressFill.style.width = `${progress}%`;
+        }
+
+        nextBtn.onclick = () => {
+            currentStep++;
+            if (currentStep < gameData.length) {
+                loadStep(currentStep);
+            } else {
+                showFinalResult();
+            }
+        };
+
+        function showFinalResult() {
+            document.getElementById('final-screen').classList.remove('hidden');
+            document.getElementById('final-score').innerText = score;
+        }
+
+        window.onload = initGame;
+    </script>
+</body>
+</html>
